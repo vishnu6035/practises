@@ -1,56 +1,59 @@
 ---
-- name: tomcat installation on ubuntu
-  hosts: hosts
+- name: install and configure tomcat 9
+  hosts: appserver
   become: yes
   vars:
     java_package: openjdk-11-jdk
     tomcat_username: tomcat
     tomcat_home: /opt/tomcat
-    tomcat__state: /bin/false
+    tomcat_shell: /bin/false
     tomcat_version: '9.0.54'
-    tomcat_dest: /tmp/apache-tomcat-{{ tomcat_version }}.tar.gz
     tomcat_service_dest: /etc/systemd/system/tomcat.service
-    tomcat_url: https://archive.apache.org/dist/tomcat/tomcat-9/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz
   tasks:
-    - name: update package and java installation 
+    - name: update packages and install java
       apt:
         name: "{{ java_package }}"
         update_cache: yes
         state: present
-    - name: adding tomcat user
+    - name: add a tomcat user
       ansible.builtin.user:
         name: "{{ tomcat_username }}"
         home: "{{ tomcat_home }}"
-        shell: "{{ tomcat__state }}"
+        shell: "{{ tomcat_shell }}"
         state: present
-    - name: download tomcat
-      ansible.builtin.get_url:
-        url: "{{ tomcat_url }}"
-        dest: "{{ tomcat_dest }}"
-    - name: untar the file
+    - name: download the tomcat distribution
+      get_url:
+        url: "https://archive.apache.org/dist/tomcat/tomcat-9/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
+        dest: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
+    - name: untar the tomcat distribution
       ansible.builtin.unarchive:
-        src: "{{ tomcat_dest }}"
+        src: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
         dest: "{{ tomcat_home }}"
-    - name: create a simlink
+    - name: create a symlink
       ansible.builtin.file:
-        src: "{{ tomcat_home }}"
+        src: "{{ tomcat_home }}/apache-tomcat-{{ tomcat_version }}"
+        dest: "{{ tomcat_home }}/latest"
+        state: link
+    - name: give ownership to tomcat user and group
+      ansible.builtin.file:
+        path: "{{ tomcat_home }}"
         state: directory
+        recurse: yes
         owner: "{{ tomcat_username }}"
         group: "{{ tomcat_username }}"
-        recursive: yes
-    - name: find all the shell files
-      find:
+    - name: find all the shell files in the binaries
+      find: 
         path: "{{ tomcat_home }}/latest/bin"
         pattern: "*.sh"
       register: shfiles
     - set_fact:
-        tomcat_excutes: "{{ shfiles.files | map(attribute='path') | list }}"
-    - name: changing permissions for shfiles
-      ansible.builtin.file:
+        tomcat_executables: "{{ shfiles.files | map(attribute='path') | list }}"
+    - name: change permission of shell files
+      file:
         path: "{{ item }}"
         mode: 0751
-      with_items: "{{ tomcat_excutes }}"
-    - name: creating tomcat service file
+      with_items: "{{ tomcat_executables }}"
+    - name: create tomcat service file
       ansible.builtin.copy:
         src: tomcat.service
         dest: "{{ tomcat_service_dest }}"
@@ -60,17 +63,11 @@
       ansible.builtin.systemd:
         name: tomcat.service
         state: started
-  hamdler:
+  handler:
     - name: reload and enable tomcat
       ansible.builtin.systemd:
         name: tomcat.service
         daemon_reload: yes
         enabled: yes
-        state: reloaded
+        state: reloaded 
         
-
-
-        
-        
-      
-  
