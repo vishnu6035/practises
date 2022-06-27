@@ -1,6 +1,6 @@
 ---
 - name: tomcat installation on ubuntu
-  hosts: hosts
+  hosts: appserver
   become: yes
   vars:
     java_package: openjdk-11-jdk
@@ -29,7 +29,12 @@
       ansible.builtin.unarchive:
         src: /tmp/apache-tomcat-{{ tomcat_version }}.tar.gz
         dest: "{{ tomcat_home }}"
-    - name: create a simlink
+    - name: create a symlink
+      ansible.builtin.file:
+        src: "{{ tomcat_home }}/apache-tomcat-{{ tomcat_version }}"
+        dest: "{{ tomcat_home }}/latest"
+        state: link
+    - name: give ownership for file
       ansible.builtin.file:
         src: "{{ tomcat_home }}"
         state: directory
